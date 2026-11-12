@@ -723,6 +723,7 @@ function route(){
   document.body.classList.remove('onboarding');
   const h = currentView(); let tab = 'roadmap', html, hl = '';
   if(!h.startsWith('coach/')) coach.detail = null;
+  if(h !== 'coach' && !h.startsWith('coach/')) coach.players = null; // reload the player list each time the Coach page is opened
   if(h.startsWith('lesson/')){ tab = 'classroom'; html = viewLesson(h.slice(7)); }
   else if(h === 'foundation'){ tab = 'foundation'; html = viewFoundation(); }
   else if(h === 'foundation/identity'){ tab = 'foundation'; html = viewIdentity(); }
