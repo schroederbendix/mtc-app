@@ -17,9 +17,11 @@ Lesson text, journal questions and community info live in `beta/content.js`.
 
 ## Release
 
+Set the new version number in `beta/version.js` (2.0, 2.1, 3.0, ...) before releasing. Shown on the Account page.
+
 1. Database changes: the files in `supabase/migrations/` are applied to the test database first, then to the live one before the release.
 2. Run `tools/release.sh`. It copies beta to the top folder, keeps the live database settings, and bumps the cache version.
-3. Commit and push. The live app updates in about a minute, and players see it the next time they open the app.
+3. Commit and push, then tag the release (`git tag v2.1 && git push origin v2.1`). The live app updates in about a minute, and players see it the next time they open the app. To roll back, restore the files from the previous tag.
 
 ## Files
 

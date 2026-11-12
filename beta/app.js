@@ -637,6 +637,7 @@ function viewSettings(){
     <div class="panel"><h3>Your data</h3><p>Download your journal, reflections and player identity as a file.</p>
       <div><button class="btn" data-backup>Download my data</button></div><div class="sync">${esc(st)}</div></div>
     <div><button class="btn" data-logout>Log out</button></div>
+    <p class="mute small" style="margin-top:26px">MTC ${esc(window.MTC_VERSION || '')}${CFG.env === 'beta' ? ' (test version)' : ''}</p>
   </section>`;
 }
 
