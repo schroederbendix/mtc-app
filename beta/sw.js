@@ -1,6 +1,6 @@
 /* MTC service worker: lets the app open offline.
    Bump VERSION whenever you change any file, so phones pick up the update. */
-const VERSION = 'mtc-beta-2';
+const VERSION = 'mtc-beta-3';
 const SHELL = [
   './', './index.html', './app.css', './app.js', './content.js', './config.js', './version.js', './vendor/supabase.js',
   './manifest.webmanifest', './bendix.jpg',

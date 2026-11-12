@@ -17,7 +17,7 @@ Lesson text, journal questions and community info live in `beta/content.js`.
 
 ## Release
 
-Set the new version number in `beta/version.js` (2.0, 2.1, 3.0, ...) before releasing. Shown on the Account page.
+Set the new version number in `beta/version.js` (1.0, 1.1, 2.0, ...) before releasing. Shown on the Account page.
 
 1. Database changes: the files in `supabase/migrations/` are applied to the test database first, then to the live one before the release.
 2. Run `tools/release.sh`. It copies beta to the top folder, keeps the live database settings, and bumps the cache version.
