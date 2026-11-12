@@ -49,7 +49,7 @@ body.onboarding .tabs{display:none}
 .bottom svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
 .bottom a[aria-current="page"]{color:var(--line)}
 .bottom a[aria-current="page"] svg{stroke:var(--ball)}
-@media (max-width:720px){
+@media (max-width:900px){
   .tabs{display:none}
   .bottom{display:flex}
 }
