@@ -12,6 +12,7 @@ cp tools/config.live.js config.js
 STAMP="mtc-$(date -u +%Y%m%d%H%M)"
 sed -i "s/^const VERSION = .*/const VERSION = '$STAMP';/" sw.js
 sed -i 's/"name": "MTC Beta"/"name": "MTC: Mental Tennis Coaching"/; s/"short_name": "MTC Beta"/"short_name": "MTC"/' manifest.webmanifest
+sed -i 's#"id": "/mtc-app/beta/"#"id": "/mtc-app/"#' manifest.webmanifest
 sed -i 's#<title>MTC Beta:#<title>MTC:#' index.html
 
 VER=$(sed -n "s/.*MTC_VERSION = '\(.*\)';/\1/p" version.js)

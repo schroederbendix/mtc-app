@@ -1,6 +1,7 @@
 {
   "name": "MTC Beta",
   "short_name": "MTC Beta",
+  "id": "/mtc-app/beta/",
   "description": "Train the mental side of your tennis. Roadmap, journal, weekly reflection and lessons from Bendix.",
   "start_url": "./#roadmap",
   "scope": "./",
