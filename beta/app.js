@@ -556,24 +556,31 @@ function viewCommunity(){
 }
 
 /* ---------- auth ---------- */
-let au = {mode: 'signup'};
+let au = {mode: 'signup', email: '', notice: ''};
+let recovering = false;
+const baseUrl = () => location.href.split('#')[0].split('?')[0].replace(/index\.html$/, '');
 function renderAuth(){
   document.body.classList.add('onboarding');
-  const su = au.mode === 'signup';
+  const m = au.mode, su = m === 'signup', fg = m === 'forgot';
+  const title = su ? 'Create your account.' : fg ? 'Reset your password.' : 'Welcome back.';
+  const sub = su ? 'You’re joining as a founding member. It takes a minute.' : fg ? 'Enter your email and I’ll send you a link to choose a new password.' : 'Log in to pick up where you left off.';
   app.innerHTML = `<div class="ob"><div class="top"></div><main>
-    <h1>${su ? 'Create your account.' : 'Welcome back.'}</h1>
-    <p class="sub">${su ? 'You’re joining as a founding member. It takes a minute.' : 'Log in to pick up where you left off.'}</p>
+    <h1>${title}</h1>
+    <p class="sub">${sub}</p>
     <form id="au-form" novalidate>
       ${su ? '<label class="f">First name<input class="field" id="au-name" autocomplete="given-name" maxlength="40" placeholder="First name"></label>' : ''}
-      <label class="f">Email<input class="field" id="au-email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com"></label>
+      <label class="f">Email<input class="field" id="au-email" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" value="${esc(au.email)}"></label>
       ${su ? '<label class="f"><span>Phone number <span class="mute" style="font-weight:500">(optional)</span></span><input class="field" id="au-phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30" placeholder="So I can reach you if needed"></label>' : ''}
-      <label class="f">Password<input class="field" id="au-pw" type="password" autocomplete="${su ? 'new-password' : 'current-password'}" ${su ? 'placeholder="At least 8 characters"' : ''}></label>
+      ${fg ? '' : `<label class="f">Password<input class="field" id="au-pw" type="password" autocomplete="${su ? 'new-password' : 'current-password'}" ${su ? 'placeholder="At least 8 characters"' : ''}></label>`}
       <div class="autherr" id="au-err" role="alert"></div>
-      <button class="btn pri" id="au-go" type="submit">${su ? 'Create account' : 'Log in'}</button>
+      <button class="btn pri" id="au-go" type="submit">${su ? 'Create account' : fg ? 'Send reset link' : 'Log in'}</button>
     </form>
-    <p class="mute switchline">${su ? 'Already have an account? <button class="linkbtn" data-au-mode="login">Log in</button>' : 'New here? <button class="linkbtn" data-au-mode="signup">Create an account</button>'}</p>
+    <p class="mute switchline">${su ? 'Already have an account? <button class="linkbtn" data-au-mode="login">Log in</button>'
+      : fg ? '<button class="linkbtn" data-au-mode="login">Back to log in</button>'
+      : 'New here? <button class="linkbtn" data-au-mode="signup">Create an account</button> · <button class="linkbtn" data-au-mode="forgot">Forgot your password?</button>'}</p>
     ${su ? '<p class="mute small">Your journal is private. I only see how often you write, unless you choose to share it with me.</p>' : ''}
   </main></div>`;
+  if(au.notice){ auMsg(au.notice, true); au.notice = ''; }
   window.scrollTo(0, 0);
 }
 function auMsg(msg, info){ const el = document.getElementById('au-err'); if(el){ el.textContent = msg || ''; el.className = 'autherr' + (info ? ' info' : ''); } }
@@ -581,29 +588,66 @@ function friendly(err){
   const m = (err && err.message) || String(err);
   if(/already registered|already been registered/i.test(m)) return 'That email already has an account. Log in instead.';
   if(/invalid login/i.test(m)) return 'That email and password don’t match.';
-  if(/rate limit|too many/i.test(m)) return 'Too many tries. Wait a few minutes and try again.';
+  if(/rate limit|too many|security purposes/i.test(m)) return 'Too many tries. Wait a few minutes and try again.';
   if(/password.*(short|least|weak)/i.test(m)) return 'Pick a longer password, at least 8 characters.';
+  if(/same.*password|different from the old/i.test(m)) return 'Pick a password you haven’t used before.';
+  if(/session missing|jwt|not authenticated/i.test(m)) return 'That link has expired. Go back and request a new one.';
   if(/fetch|network|load failed/i.test(m)) return 'Can’t reach the server. Check your connection and try again.';
   return m;
 }
 let authBusy = false;
 async function doAuth(){
   if(authBusy || !sb) return;
-  const su = au.mode === 'signup', val = id => ((document.getElementById(id) || {}).value || '').trim();
+  const su = au.mode === 'signup', fg = au.mode === 'forgot', val = id => ((document.getElementById(id) || {}).value || '').trim();
+  const label = su ? 'Create account' : fg ? 'Send reset link' : 'Log in';
   const name = val('au-name'), email = val('au-email').toLowerCase(), phone = val('au-phone'), pw = (document.getElementById('au-pw') || {}).value || '';
   if(su && !name){ auMsg('What should I call you?'); return; }
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ auMsg('Enter a valid email address.'); return; }
   if(su && phone && phone.replace(/\D/g, '').length < 7){ auMsg('That phone number looks too short. Leave it empty if you prefer.'); return; }
-  if(su ? pw.length < 8 : !pw){ auMsg(su ? 'Pick a password with at least 8 characters.' : 'Enter your password.'); return; }
+  if(!fg && (su ? pw.length < 8 : !pw)){ auMsg(su ? 'Pick a password with at least 8 characters.' : 'Enter your password.'); return; }
   authBusy = true; auMsg(''); const btn = document.getElementById('au-go'); if(btn){ btn.disabled = true; btn.textContent = 'One moment…'; }
   try{
+    if(fg){
+      const r = await sb.auth.resetPasswordForEmail(email, {redirectTo: baseUrl()});
+      if(r.error) throw r.error;
+      auMsg('If that email has an account, a reset link is on its way. Check your spam folder too. The link works once and expires after an hour.', true);
+      authBusy = false; if(btn){ btn.disabled = false; btn.textContent = label; } return;
+    }
     const res = su ? await sb.auth.signUp({email, password: pw, options: {data: {name, phone}}}) : await sb.auth.signInWithPassword({email, password: pw});
     if(res.error) throw res.error;
-    if(!res.data || !res.data.session){ au.mode = 'login'; renderAuth(); auMsg('Almost there. Check your email for a confirmation link, then log in.', true); authBusy = false; return; }
+    if(!res.data || !res.data.session){ au.mode = 'login'; au.email = email; renderAuth(); auMsg('Almost there. Check your email for a confirmation link, then log in.', true); authBusy = false; return; }
     authBusy = false; await startSession(res.data.session); return;
   }catch(err){ auMsg(friendly(err)); }
   authBusy = false;
-  const b2 = document.getElementById('au-go'); if(b2){ b2.disabled = false; b2.textContent = su ? 'Create account' : 'Log in'; }
+  const b2 = document.getElementById('au-go'); if(b2){ b2.disabled = false; b2.textContent = label; }
+}
+function renderReset(){
+  document.body.classList.add('onboarding');
+  app.innerHTML = `<div class="ob"><div class="top"></div><main>
+    <h1>Choose a new password.</h1>
+    <p class="sub">Pick something you haven’t used here before. At least 8 characters.</p>
+    <form id="rs-form" novalidate>
+      <label class="f">New password<input class="field" id="rs-pw" type="password" autocomplete="new-password"></label>
+      <label class="f">Type it again<input class="field" id="rs-pw2" type="password" autocomplete="new-password"></label>
+      <div class="autherr" id="au-err" role="alert"></div>
+      <button class="btn pri" id="rs-go" type="submit">Save new password</button>
+    </form></main></div>`;
+}
+async function doReset(){
+  if(authBusy || !sb) return;
+  const pw = (document.getElementById('rs-pw') || {}).value || '', pw2 = (document.getElementById('rs-pw2') || {}).value || '';
+  if(pw.length < 8){ auMsg('Pick a password with at least 8 characters.'); return; }
+  if(pw !== pw2){ auMsg('The two passwords don’t match.'); return; }
+  authBusy = true; auMsg(''); const btn = document.getElementById('rs-go'); if(btn){ btn.disabled = true; btn.textContent = 'One moment…'; }
+  try{
+    const r = await sb.auth.updateUser({password: pw});
+    if(r.error) throw r.error;
+    const g = await sb.auth.getSession(), s0 = g && g.data && g.data.session;
+    recovering = false; authBusy = false;
+    if(s0){ await startSession(s0); location.hash = '#roadmap'; toast('Password changed. You’re logged in.'); return; }
+    au.mode = 'login'; au.notice = 'Password changed. Log in with your new password.'; route(); return;
+  }catch(err){ auMsg(friendly(err)); }
+  authBusy = false; const b2 = document.getElementById('rs-go'); if(b2){ b2.disabled = false; b2.textContent = 'Save new password'; }
 }
 function renderMessage(html){
   document.body.classList.add('onboarding');
@@ -712,7 +756,9 @@ function updateChrome(){
 function route(){
   updateChrome();
   if(booting){ renderMessage('<p class="sub">Loading…</p>'); return; }
+  if(recovering && sb){ renderReset(); return; }
   if(!sb){ renderMessage('<h1>Something is off.</h1><p class="sub">The app can’t find its settings. Reload the page. If it keeps happening, tell Bendix.</p>'); return; }
+  if(recovering){ renderReset(); return; }
   if(!session){ renderAuth(); return; }
   if(!profile){
     if(pullFailed) renderMessage('<h1>Can’t load your account.</h1><p class="sub">Check your connection and try again.</p><button class="btn pri" data-retry>Try again</button> <button class="btn" data-logout>Log out</button>');
@@ -749,7 +795,7 @@ function downloadFile(name, text, type){
 document.addEventListener('click', e => {
   const t = e.target;
   let el0;
-  if((el0 = t.closest('[data-au-mode]'))){ au.mode = el0.dataset.auMode; renderAuth(); return; }
+  if((el0 = t.closest('[data-au-mode]'))){ au.email = ((document.getElementById('au-email') || {}).value || '').trim(); au.mode = el0.dataset.auMode; renderAuth(); return; }
   if(t.closest('[data-retry]')){ pullFailed = false; startSession(session); return; }
   if(t.closest('[data-logout]')){ logout(); return; }
   if(!session){ return; }
@@ -904,18 +950,29 @@ document.addEventListener('change', e => {
   const t = e.target;
   if(profile && t.id === 'j-date'){ jdate = t.value || today(); rehearsedAns = rehearsedDates[jdate] ? true : rehearsedAns; document.querySelectorAll('[data-reh]').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.reh === 'yes') === rehearsedAns && rehearsedAns != null))); }
 });
-document.addEventListener('submit', e => { if(e.target.id === 'au-form'){ e.preventDefault(); doAuth(); } });
+document.addEventListener('submit', e => { if(e.target.id === 'au-form'){ e.preventDefault(); doAuth(); } else if(e.target.id === 'rs-form'){ e.preventDefault(); doReset(); } });
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('rehearse').hidden) closeRehearse(); });
 
 /* ---------- start ---------- */
+(function readLinkErrors(){
+  const h = location.hash || '';
+  if(/error_code=|error_description=/.test(h)){
+    au.mode = 'login'; au.notice = /otp_expired|expired/i.test(h) ? 'That link has expired or was already used. Request a new one with “Forgot your password?”.' : 'That link didn’t work. Request a new one with “Forgot your password?”.';
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  } else if(/type=recovery/.test(h)){ recovering = true; }
+})();
 reload();
 route();
 (async function boot(){
   if(!sb){ booting = false; route(); return; }
   try{
-    sb.auth.onAuthStateChange((ev) => { if(ev === 'SIGNED_OUT' && session){ session = null; clearLocal(); route(); } });
+    sb.auth.onAuthStateChange((ev) => {
+      if(ev === 'PASSWORD_RECOVERY'){ recovering = true; booting = false; route(); }
+      else if(ev === 'SIGNED_OUT' && session){ session = null; clearLocal(); route(); }
+    });
     const r = await sb.auth.getSession();
     const s0 = r && r.data && r.data.session;
+    if(recovering){ booting = false; route(); return; }
     if(s0){ await startSession(s0); return; }
   }catch(e){}
   booting = false; route();

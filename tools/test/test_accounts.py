@@ -205,6 +205,43 @@ with sync_playwright() as p:
     check('second device sees same journal', dp.locator('.entry').count() == 1)
     dp.screenshot(path=OUT + 'a5_desktop.png')
 
+
+    # ---- forgot password ----
+    FP = new_ctx(b, **MOB); fp = page_of(FP); PUMP[0] = fp; fp.goto(BASE); fp.wait_for_selector('#au-form')
+    fp.click('[data-au-mode="login"]'); fp.fill('#au-email', 'alex@test.com'); fp.click('[data-au-mode="forgot"]')
+    check('forgot screen keeps typed email, hides password', fp.locator('#au-email').input_value() == 'alex@test.com' and fp.locator('#au-pw').count() == 0)
+    fp.fill('#au-email', 'nope'); fp.click('#au-go')
+    check('forgot refuses bad email', 'valid email' in fp.locator('#au-err').inner_text())
+    fp.fill('#au-email', 'alex@test.com'); fp.click('#au-go'); fp.wait_for_selector('.autherr.info')
+    check('reset email requested with return address', waitfor(lambda: len(srv.resets) == 1 and srv.resets[0]['email'] == 'alex@test.com' and srv.resets[0]['redirectTo'].endswith('/index.html') is False))
+    check('generic confirmation shown', 'reset link is on its way' in fp.locator('#au-err').inner_text())
+    fp.fill('#au-email', 'ghost@test.com'); fp.click('#au-go'); fp.wait_for_function("document.getElementById('au-go').textContent === 'Send reset link'")
+    check('unknown email gets the same message', 'reset link is on its way' in fp.locator('#au-err').inner_text())
+    fp.screenshot(path=OUT + 'a6_forgot.png')
+    # the emailed link brings the player back: simulate Supabase's recovery event
+    sess = {'user': {'id': uid('alex@test.com'), 'email': 'alex@test.com'}}
+    fp.evaluate("s => { localStorage.setItem('mock-session', JSON.stringify(s)); window.__authCb('PASSWORD_RECOVERY', s); }", sess)
+    fp.wait_for_selector('#rs-form')
+    check('recovery link shows the new-password screen', 'Choose a new password' in fp.locator('h1').inner_text())
+    fp.fill('#rs-pw', 'short'); fp.fill('#rs-pw2', 'short'); fp.click('#rs-go')
+    check('short new password refused', '8 characters' in fp.locator('#au-err').inner_text())
+    fp.fill('#rs-pw', 'newpassword9'); fp.fill('#rs-pw2', 'different99'); fp.click('#rs-go')
+    check('mismatch refused', 'don’t match' in fp.locator('#au-err').inner_text())
+    fp.fill('#rs-pw', 'password1'); fp.fill('#rs-pw2', 'password1'); fp.click('#rs-go')
+    check('same password message', 'haven’t used' in fp.locator('#au-err').inner_text())
+    fp.screenshot(path=OUT + 'a7_reset.png')
+    fp.fill('#rs-pw', 'newpassword9'); fp.fill('#rs-pw2', 'newpassword9'); fp.click('#rs-go'); fp.wait_for_selector('.hero h1')
+    check('password changed and player is logged in', waitfor(lambda: srv.users['alex@test.com']['pw'] == 'newpassword9') and 'Alexander' in fp.locator('.hero h1').inner_text())
+    fp.goto(BASE + '#settings'); fp.wait_for_selector('[data-logout]'); fp.click('[data-logout]'); fp.wait_for_selector('#au-form')
+    fp.fill('#au-email', 'alex@test.com'); fp.fill('#au-pw', 'password1'); fp.click('#au-go')
+    check('old password no longer works', waitfor(lambda: 'don’t match' in fp.locator('#au-err').inner_text()))
+    fp.fill('#au-pw', 'newpassword9'); fp.click('#au-go'); fp.wait_for_selector('.hero h1')
+    check('new password works', True)
+    # expired link
+    EX = new_ctx(b, **MOB); ex = page_of(EX); ex.goto(BASE + '#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired')
+    ex.wait_for_selector('#au-form'); ex.wait_for_selector('.autherr.info')
+    check('expired link explains and offers a new one', 'expired' in ex.locator('#au-err').inner_text() and ex.locator('[data-au-mode="forgot"]').count() == 1)
+
     # ---- security: stray write attempts via the app client ----
     res = json.loads(srv.handle(json.dumps({'fn': 'table', 'args': {'table': 'profiles', 'op': 'update', 'patch': {'role': 'admin'}, 'filters': [['id', uid('sam@test.com')]]}, 'me': uid('sam@test.com')})))
     check('mock blocks role change (mirrors real grants)', 'error' in res)

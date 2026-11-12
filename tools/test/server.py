@@ -6,6 +6,7 @@ class Server:
         self.users = {}      # email -> dict(id, pw)
         self.t = {k: [] for k in ['profiles', 'entries', 'reflections', 'identity_versions', 'player_state']}
         self.offline = False
+        self.resets = []
         self.log = []
 
     def profile(self, uid):
@@ -45,6 +46,16 @@ class Server:
             u = self.users.get(a['email'])
             if not u or u['pw'] != a['password']: raise Exception('Invalid login credentials')
             return {'data': {'session': self._session(a['email'])}, 'error': None}
+        if fn == 'reset':
+            self.resets.append(a)
+            return {'data': {}, 'error': None}
+        if fn == 'setPassword':
+            email = next((e for e, u in self.users.items() if u['id'] == me), None)
+            if not email: raise Exception('Auth session missing!')
+            if len(a['password']) < 6: raise Exception('Password should be at least 6 characters')
+            if self.users[email]['pw'] == a['password']: raise Exception('New password should be different from the old password.')
+            self.users[email]['pw'] = a['password']
+            return {'data': {'user': {'id': me}}, 'error': None}
         if fn == 'rpc:admin_players':
             if not self.is_admin(me): raise Exception('not allowed')
             out = []

@@ -21,7 +21,9 @@ window.MTC_MOCK_SB = function(){
       async signInWithPassword(a){ const r = await call('signIn', a); if(r.data && r.data.session) setSession(r.data.session); return r; },
       async signOut(){ setSession(null); return {error: null}; },
       async getSession(){ return {data: {session: JSON.parse(localStorage.getItem('mock-session') || 'null')}}; },
-      onAuthStateChange(){ return {data: {subscription: {unsubscribe(){}}}}; }
+      async resetPasswordForEmail(email, opts){ return call('reset', {email, redirectTo: opts && opts.redirectTo}); },
+      async updateUser(a){ return call('setPassword', a); },
+      onAuthStateChange(cb){ window.__authCb = cb; return {data: {subscription: {unsubscribe(){}}}}; }
     },
     from: q,
     rpc: (name, args) => call('rpc:' + name, args)
